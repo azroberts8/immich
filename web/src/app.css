@@ -39,8 +39,8 @@
 }
 
 @font-face {
-  font-family: 'Snowburst One';
-  src: url('$lib/assets/fonts/SnowburstOne-Regular.ttf') format('truetype');
+  font-family: 'Suisse Works';
+  src: url('$lib/assets/fonts/SuisseWorks-Regular.woff2');
 }
 
 :root {

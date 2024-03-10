@@ -1,7 +1,7 @@
 <script lang="ts">
-  import immichLogoUrl from '$lib/assets/immich-logo.svg';
+  import immichLogoUrl from '$lib/assets/photos-logo.svg';
 
   export let draggable = false;
 </script>
 
-<img src={immichLogoUrl} alt="Immich Logo" {draggable} {...$$restProps} />
+<img src={immichLogoUrl} alt="Photos Logo" {draggable} {...$$restProps} />

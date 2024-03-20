@@ -22,7 +22,7 @@
   data-sveltekit-preload-data={preloadData ? 'hover' : 'off'}
   draggable="false"
   aria-current={isSelected ? 'page' : undefined}
-  class="flex w-full place-items-center justify-between gap-4 rounded-r-full py-3 transition-[padding] delay-100 duration-100 hover:cursor-pointer hover:bg-immich-gray hover:text-immich-primary dark:text-immich-dark-fg dark:hover:bg-immich-dark-gray dark:hover:text-immich-dark-primary
+  class="flex w-full place-items-center justify-between gap-4 rounded-r-full py-2 transition-[padding] delay-100 duration-100 hover:cursor-pointer hover:bg-immich-gray hover:text-immich-primary dark:text-immich-dark-fg dark:hover:bg-immich-dark-gray dark:hover:text-immich-dark-primary
     {isSelected
     ? 'bg-immich-primary/10 text-immich-primary hover:bg-immich-primary/25 dark:bg-immich-dark-primary/10 dark:text-immich-dark-primary'
     : ''}
@@ -30,7 +30,7 @@
   "
 >
   <div class="flex w-full place-items-center gap-4 overflow-hidden truncate">
-    <Icon path={icon} size="1.5em" class="shrink-0" flipped={flippedLogo} ariaHidden />
+    <Icon path={icon} size="1.3em" class="shrink-0" flipped={flippedLogo} ariaHidden />
     <span class="text-sm font-medium">{title}</span>
   </div>
 
@@ -49,9 +49,9 @@
         </div>
 
         {#if showMoreInformation}
-          <div class="absolute right-6 top-0">
+          <div class="absolute right-0 top-6 z-10">
             <div
-              class="flex place-content-center place-items-center whitespace-nowrap rounded-3xl border bg-immich-bg px-6 py-3 text-xs text-immich-fg shadow-lg dark:border-immich-dark-gray dark:bg-gray-600 dark:text-immich-dark-fg"
+              class="flex place-content-center place-items-center whitespace-nowrap rounded border bg-immich-dark-gray px-6 py-3 text-xs text-immich-bg shadow-lg dark:border-immich-dark-gray dark:bg-immich-bg dark:text-immich-dark-bg"
               class:hidden={!showMoreInformation}
               transition:fade={{ duration: 200 }}
             >

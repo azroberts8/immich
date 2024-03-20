@@ -63,7 +63,7 @@
         loading={preload ? 'eager' : 'lazy'}
         src={imageData}
         alt={album.albumName}
-        class="z-0 h-full w-full rounded-xl object-cover transition-all duration-300 hover:shadow-lg"
+        class="z-0 h-full w-full rounded-lg object-cover transition-all duration-300 hover:shadow-lg"
         data-testid="album-image"
         draggable="false"
       />

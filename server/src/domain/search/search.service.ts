@@ -1,7 +1,6 @@
-import { AssetEntity } from '@app/infra/entities';
-import { ImmichLogger } from '@app/infra/logger';
+import { AssetEntity, AssetOrder } from '@app/infra/entities';
 import { Inject, Injectable } from '@nestjs/common';
-import { AssetOrder, AssetResponseDto, mapAsset } from '../asset';
+import { AssetResponseDto, mapAsset } from '../asset';
 import { AuthDto } from '../auth';
 import { PersonResponseDto } from '../person';
 import {
@@ -30,7 +29,6 @@ import { SearchResponseDto } from './response-dto';
 
 @Injectable()
 export class SearchService {
-  private logger = new ImmichLogger(SearchService.name);
   private configCore: SystemConfigCore;
 
   constructor(
@@ -62,7 +60,7 @@ export class SearchService {
       this.assetRepository.getAssetIdByTag(auth.user.id, options),
     ]);
     const assetIds = new Set<string>(results.flatMap((field) => field.items.map((item) => item.data)));
-    const assets = await this.assetRepository.getByIds([...assetIds]);
+    const assets = await this.assetRepository.getByIdsWithAllRelations([...assetIds]);
     const assetMap = new Map<string, AssetResponseDto>(assets.map((asset) => [asset.id, mapAsset(asset)]));
 
     return results.map(({ fieldName, items }) => ({
@@ -115,6 +113,32 @@ export class SearchService {
     );
 
     return this.mapResponse(items, hasNextPage ? (page + 1).toString() : null);
+  }
+
+  async getAssetsByCity(auth: AuthDto): Promise<AssetResponseDto[]> {
+    const userIds = await this.getUserIdsToSearch(auth);
+    const assets = await this.searchRepository.getAssetsByCity(userIds);
+    return assets.map((asset) => mapAsset(asset));
+  }
+
+  getSearchSuggestions(auth: AuthDto, dto: SearchSuggestionRequestDto): Promise<string[]> {
+    switch (dto.type) {
+      case SearchSuggestionType.COUNTRY: {
+        return this.metadataRepository.getCountries(auth.user.id);
+      }
+      case SearchSuggestionType.STATE: {
+        return this.metadataRepository.getStates(auth.user.id, dto.country);
+      }
+      case SearchSuggestionType.CITY: {
+        return this.metadataRepository.getCities(auth.user.id, dto.country, dto.state);
+      }
+      case SearchSuggestionType.CAMERA_MAKE: {
+        return this.metadataRepository.getCameraMakes(auth.user.id, dto.model);
+      }
+      case SearchSuggestionType.CAMERA_MODEL: {
+        return this.metadataRepository.getCameraModels(auth.user.id, dto.make);
+      }
+    }
   }
 
   // TODO: remove after implementing new search filters
@@ -192,25 +216,5 @@ export class SearchService {
         nextPage,
       },
     };
-  }
-
-  async getSearchSuggestions(auth: AuthDto, dto: SearchSuggestionRequestDto): Promise<string[]> {
-    switch (dto.type) {
-      case SearchSuggestionType.COUNTRY: {
-        return this.metadataRepository.getCountries(auth.user.id);
-      }
-      case SearchSuggestionType.STATE: {
-        return this.metadataRepository.getStates(auth.user.id, dto.country);
-      }
-      case SearchSuggestionType.CITY: {
-        return this.metadataRepository.getCities(auth.user.id, dto.country, dto.state);
-      }
-      case SearchSuggestionType.CAMERA_MAKE: {
-        return this.metadataRepository.getCameraMakes(auth.user.id, dto.model);
-      }
-      case SearchSuggestionType.CAMERA_MODEL: {
-        return this.metadataRepository.getCameraModels(auth.user.id, dto.make);
-      }
-    }
   }
 }

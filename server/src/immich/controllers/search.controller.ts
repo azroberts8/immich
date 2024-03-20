@@ -1,4 +1,5 @@
 import {
+  AssetResponseDto,
   AuthDto,
   MetadataSearchDto,
   PersonResponseDto,
@@ -12,32 +13,32 @@ import {
   SmartSearchDto,
 } from '@app/domain';
 import { SearchSuggestionRequestDto } from '@app/domain/search/dto/search-suggestion.dto';
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Auth, Authenticated } from '../app.guard';
-import { UseValidation } from '../app.utils';
 
 @ApiTags('Search')
 @Controller('search')
 @Authenticated()
-@UseValidation()
 export class SearchController {
   constructor(private service: SearchService) {}
-
-  @Post('metadata')
-  searchMetadata(@Auth() auth: AuthDto, @Body() dto: MetadataSearchDto): Promise<SearchResponseDto> {
-    return this.service.searchMetadata(auth, dto);
-  }
-
-  @Post('smart')
-  searchSmart(@Auth() auth: AuthDto, @Body() dto: SmartSearchDto): Promise<SearchResponseDto> {
-    return this.service.searchSmart(auth, dto);
-  }
 
   @Get()
   @ApiOperation({ deprecated: true })
   search(@Auth() auth: AuthDto, @Query() dto: SearchDto): Promise<SearchResponseDto> {
     return this.service.search(auth, dto);
+  }
+
+  @Post('metadata')
+  @HttpCode(HttpStatus.OK)
+  searchMetadata(@Auth() auth: AuthDto, @Body() dto: MetadataSearchDto): Promise<SearchResponseDto> {
+    return this.service.searchMetadata(auth, dto);
+  }
+
+  @Post('smart')
+  @HttpCode(HttpStatus.OK)
+  searchSmart(@Auth() auth: AuthDto, @Body() dto: SmartSearchDto): Promise<SearchResponseDto> {
+    return this.service.searchSmart(auth, dto);
   }
 
   @Get('explore')
@@ -53,6 +54,11 @@ export class SearchController {
   @Get('places')
   searchPlaces(@Query() dto: SearchPlacesDto): Promise<PlacesResponseDto[]> {
     return this.service.searchPlaces(dto);
+  }
+
+  @Get('cities')
+  getAssetsByCity(@Auth() auth: AuthDto): Promise<AssetResponseDto[]> {
+    return this.service.getAssetsByCity(auth);
   }
 
   @Get('suggestions')

@@ -14,6 +14,7 @@ import {
 } from '../entities';
 import { DummyValue, GenerateSql } from '../infra.util';
 import { ChunkedSet } from '../infra.utils';
+import { Instrumentation } from '../instrumentation';
 
 type IActivityAccess = IAccessRepository['activity'];
 type IAlbumAccess = IAccessRepository['album'];
@@ -24,6 +25,7 @@ type ITimelineAccess = IAccessRepository['timeline'];
 type IPersonAccess = IAccessRepository['person'];
 type IPartnerAccess = IAccessRepository['partner'];
 
+@Instrumentation()
 class ActivityAccess implements IActivityAccess {
   constructor(
     private activityRepository: Repository<ActivityEntity>,
@@ -305,10 +307,7 @@ class AuthDeviceAccess implements IAuthDeviceAccess {
 }
 
 class LibraryAccess implements ILibraryAccess {
-  constructor(
-    private libraryRepository: Repository<LibraryEntity>,
-    private partnerRepository: Repository<PartnerEntity>,
-  ) {}
+  constructor(private libraryRepository: Repository<LibraryEntity>) {}
 
   @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
   @ChunkedSet({ paramIndex: 1 })
@@ -326,22 +325,6 @@ class LibraryAccess implements ILibraryAccess {
         },
       })
       .then((libraries) => new Set(libraries.map((library) => library.id)));
-  }
-
-  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
-  @ChunkedSet({ paramIndex: 1 })
-  async checkPartnerAccess(userId: string, partnerIds: Set<string>): Promise<Set<string>> {
-    if (partnerIds.size === 0) {
-      return new Set();
-    }
-
-    return this.partnerRepository
-      .createQueryBuilder('partner')
-      .select('partner.sharedById')
-      .where('partner.sharedById IN (:...partnerIds)', { partnerIds: [...partnerIds] })
-      .andWhere('partner.sharedWithId = :userId', { userId })
-      .getMany()
-      .then((partners) => new Set(partners.map((partner) => partner.sharedById)));
   }
 }
 
@@ -455,7 +438,7 @@ export class AccessRepository implements IAccessRepository {
     this.album = new AlbumAccess(albumRepository, sharedLinkRepository);
     this.asset = new AssetAccess(albumRepository, assetRepository, partnerRepository, sharedLinkRepository);
     this.authDevice = new AuthDeviceAccess(tokenRepository);
-    this.library = new LibraryAccess(libraryRepository, partnerRepository);
+    this.library = new LibraryAccess(libraryRepository);
     this.person = new PersonAccess(assetFaceRepository, personRepository);
     this.partner = new PartnerAccess(partnerRepository);
     this.timeline = new TimelineAccess(partnerRepository);

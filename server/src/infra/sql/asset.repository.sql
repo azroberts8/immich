@@ -76,90 +76,43 @@ WHERE
 ORDER BY
   "AssetEntity"."fileCreatedAt" DESC
 
--- AssetRepository.getByDayOfYear
-SELECT
-  "entity"."id" AS "entity_id",
-  "entity"."deviceAssetId" AS "entity_deviceAssetId",
-  "entity"."ownerId" AS "entity_ownerId",
-  "entity"."libraryId" AS "entity_libraryId",
-  "entity"."deviceId" AS "entity_deviceId",
-  "entity"."type" AS "entity_type",
-  "entity"."originalPath" AS "entity_originalPath",
-  "entity"."resizePath" AS "entity_resizePath",
-  "entity"."webpPath" AS "entity_webpPath",
-  "entity"."thumbhash" AS "entity_thumbhash",
-  "entity"."encodedVideoPath" AS "entity_encodedVideoPath",
-  "entity"."createdAt" AS "entity_createdAt",
-  "entity"."updatedAt" AS "entity_updatedAt",
-  "entity"."deletedAt" AS "entity_deletedAt",
-  "entity"."fileCreatedAt" AS "entity_fileCreatedAt",
-  "entity"."localDateTime" AS "entity_localDateTime",
-  "entity"."fileModifiedAt" AS "entity_fileModifiedAt",
-  "entity"."isFavorite" AS "entity_isFavorite",
-  "entity"."isArchived" AS "entity_isArchived",
-  "entity"."isExternal" AS "entity_isExternal",
-  "entity"."isReadOnly" AS "entity_isReadOnly",
-  "entity"."isOffline" AS "entity_isOffline",
-  "entity"."checksum" AS "entity_checksum",
-  "entity"."duration" AS "entity_duration",
-  "entity"."isVisible" AS "entity_isVisible",
-  "entity"."livePhotoVideoId" AS "entity_livePhotoVideoId",
-  "entity"."originalFileName" AS "entity_originalFileName",
-  "entity"."sidecarPath" AS "entity_sidecarPath",
-  "entity"."stackId" AS "entity_stackId",
-  "exifInfo"."assetId" AS "exifInfo_assetId",
-  "exifInfo"."description" AS "exifInfo_description",
-  "exifInfo"."exifImageWidth" AS "exifInfo_exifImageWidth",
-  "exifInfo"."exifImageHeight" AS "exifInfo_exifImageHeight",
-  "exifInfo"."fileSizeInByte" AS "exifInfo_fileSizeInByte",
-  "exifInfo"."orientation" AS "exifInfo_orientation",
-  "exifInfo"."dateTimeOriginal" AS "exifInfo_dateTimeOriginal",
-  "exifInfo"."modifyDate" AS "exifInfo_modifyDate",
-  "exifInfo"."timeZone" AS "exifInfo_timeZone",
-  "exifInfo"."latitude" AS "exifInfo_latitude",
-  "exifInfo"."longitude" AS "exifInfo_longitude",
-  "exifInfo"."projectionType" AS "exifInfo_projectionType",
-  "exifInfo"."city" AS "exifInfo_city",
-  "exifInfo"."livePhotoCID" AS "exifInfo_livePhotoCID",
-  "exifInfo"."autoStackId" AS "exifInfo_autoStackId",
-  "exifInfo"."state" AS "exifInfo_state",
-  "exifInfo"."country" AS "exifInfo_country",
-  "exifInfo"."make" AS "exifInfo_make",
-  "exifInfo"."model" AS "exifInfo_model",
-  "exifInfo"."lensModel" AS "exifInfo_lensModel",
-  "exifInfo"."fNumber" AS "exifInfo_fNumber",
-  "exifInfo"."focalLength" AS "exifInfo_focalLength",
-  "exifInfo"."iso" AS "exifInfo_iso",
-  "exifInfo"."exposureTime" AS "exifInfo_exposureTime",
-  "exifInfo"."profileDescription" AS "exifInfo_profileDescription",
-  "exifInfo"."colorspace" AS "exifInfo_colorspace",
-  "exifInfo"."bitsPerSample" AS "exifInfo_bitsPerSample",
-  "exifInfo"."fps" AS "exifInfo_fps"
-FROM
-  "assets" "entity"
-  LEFT JOIN "exif" "exifInfo" ON "exifInfo"."assetId" = "entity"."id"
-WHERE
-  (
-    "entity"."ownerId" = $1
-    AND "entity"."isVisible" = true
-    AND "entity"."isArchived" = false
-    AND "entity"."resizePath" IS NOT NULL
-    AND EXTRACT(
-      DAY
-      FROM
-        "entity"."localDateTime" AT TIME ZONE 'UTC'
-    ) = $2
-    AND EXTRACT(
-      MONTH
-      FROM
-        "entity"."localDateTime" AT TIME ZONE 'UTC'
-    ) = $3
-  )
-  AND ("entity"."deletedAt" IS NULL)
-ORDER BY
-  "entity"."localDateTime" DESC
-
 -- AssetRepository.getByIds
+SELECT
+  "AssetEntity"."id" AS "AssetEntity_id",
+  "AssetEntity"."deviceAssetId" AS "AssetEntity_deviceAssetId",
+  "AssetEntity"."ownerId" AS "AssetEntity_ownerId",
+  "AssetEntity"."libraryId" AS "AssetEntity_libraryId",
+  "AssetEntity"."deviceId" AS "AssetEntity_deviceId",
+  "AssetEntity"."type" AS "AssetEntity_type",
+  "AssetEntity"."originalPath" AS "AssetEntity_originalPath",
+  "AssetEntity"."resizePath" AS "AssetEntity_resizePath",
+  "AssetEntity"."webpPath" AS "AssetEntity_webpPath",
+  "AssetEntity"."thumbhash" AS "AssetEntity_thumbhash",
+  "AssetEntity"."encodedVideoPath" AS "AssetEntity_encodedVideoPath",
+  "AssetEntity"."createdAt" AS "AssetEntity_createdAt",
+  "AssetEntity"."updatedAt" AS "AssetEntity_updatedAt",
+  "AssetEntity"."deletedAt" AS "AssetEntity_deletedAt",
+  "AssetEntity"."fileCreatedAt" AS "AssetEntity_fileCreatedAt",
+  "AssetEntity"."localDateTime" AS "AssetEntity_localDateTime",
+  "AssetEntity"."fileModifiedAt" AS "AssetEntity_fileModifiedAt",
+  "AssetEntity"."isFavorite" AS "AssetEntity_isFavorite",
+  "AssetEntity"."isArchived" AS "AssetEntity_isArchived",
+  "AssetEntity"."isExternal" AS "AssetEntity_isExternal",
+  "AssetEntity"."isReadOnly" AS "AssetEntity_isReadOnly",
+  "AssetEntity"."isOffline" AS "AssetEntity_isOffline",
+  "AssetEntity"."checksum" AS "AssetEntity_checksum",
+  "AssetEntity"."duration" AS "AssetEntity_duration",
+  "AssetEntity"."isVisible" AS "AssetEntity_isVisible",
+  "AssetEntity"."livePhotoVideoId" AS "AssetEntity_livePhotoVideoId",
+  "AssetEntity"."originalFileName" AS "AssetEntity_originalFileName",
+  "AssetEntity"."sidecarPath" AS "AssetEntity_sidecarPath",
+  "AssetEntity"."stackId" AS "AssetEntity_stackId"
+FROM
+  "assets" "AssetEntity"
+WHERE
+  (("AssetEntity"."id" IN ($1)))
+
+-- AssetRepository.getByIdsWithAllRelations
 SELECT
   "AssetEntity"."id" AS "AssetEntity_id",
   "AssetEntity"."deviceAssetId" AS "AssetEntity_deviceAssetId",
@@ -293,53 +246,6 @@ DELETE FROM "assets"
 WHERE
   "ownerId" = $1
 
--- AssetRepository.getByLibraryId
-SELECT
-  "AssetEntity"."id" AS "AssetEntity_id",
-  "AssetEntity"."deviceAssetId" AS "AssetEntity_deviceAssetId",
-  "AssetEntity"."ownerId" AS "AssetEntity_ownerId",
-  "AssetEntity"."libraryId" AS "AssetEntity_libraryId",
-  "AssetEntity"."deviceId" AS "AssetEntity_deviceId",
-  "AssetEntity"."type" AS "AssetEntity_type",
-  "AssetEntity"."originalPath" AS "AssetEntity_originalPath",
-  "AssetEntity"."resizePath" AS "AssetEntity_resizePath",
-  "AssetEntity"."webpPath" AS "AssetEntity_webpPath",
-  "AssetEntity"."thumbhash" AS "AssetEntity_thumbhash",
-  "AssetEntity"."encodedVideoPath" AS "AssetEntity_encodedVideoPath",
-  "AssetEntity"."createdAt" AS "AssetEntity_createdAt",
-  "AssetEntity"."updatedAt" AS "AssetEntity_updatedAt",
-  "AssetEntity"."deletedAt" AS "AssetEntity_deletedAt",
-  "AssetEntity"."fileCreatedAt" AS "AssetEntity_fileCreatedAt",
-  "AssetEntity"."localDateTime" AS "AssetEntity_localDateTime",
-  "AssetEntity"."fileModifiedAt" AS "AssetEntity_fileModifiedAt",
-  "AssetEntity"."isFavorite" AS "AssetEntity_isFavorite",
-  "AssetEntity"."isArchived" AS "AssetEntity_isArchived",
-  "AssetEntity"."isExternal" AS "AssetEntity_isExternal",
-  "AssetEntity"."isReadOnly" AS "AssetEntity_isReadOnly",
-  "AssetEntity"."isOffline" AS "AssetEntity_isOffline",
-  "AssetEntity"."checksum" AS "AssetEntity_checksum",
-  "AssetEntity"."duration" AS "AssetEntity_duration",
-  "AssetEntity"."isVisible" AS "AssetEntity_isVisible",
-  "AssetEntity"."livePhotoVideoId" AS "AssetEntity_livePhotoVideoId",
-  "AssetEntity"."originalFileName" AS "AssetEntity_originalFileName",
-  "AssetEntity"."sidecarPath" AS "AssetEntity_sidecarPath",
-  "AssetEntity"."stackId" AS "AssetEntity_stackId"
-FROM
-  "assets" "AssetEntity"
-  LEFT JOIN "libraries" "AssetEntity__AssetEntity_library" ON "AssetEntity__AssetEntity_library"."id" = "AssetEntity"."libraryId"
-  AND (
-    "AssetEntity__AssetEntity_library"."deletedAt" IS NULL
-  )
-WHERE
-  (
-    (
-      (
-        (("AssetEntity__AssetEntity_library"."id" IN ($1)))
-      )
-    )
-  )
-  AND ("AssetEntity"."deletedAt" IS NULL)
-
 -- AssetRepository.getByLibraryIdAndOriginalPath
 SELECT DISTINCT
   "distinctAlias"."AssetEntity_id" AS "ids_AssetEntity_id"
@@ -427,55 +333,6 @@ WHERE
     AND NOT ("originalPath" IN ($3))
     AND "isOffline" = $4
   )
-
--- AssetRepository.getAllByFileCreationDate
-SELECT
-  "asset"."id" AS "asset_id",
-  "asset"."deviceAssetId" AS "asset_deviceAssetId",
-  "asset"."ownerId" AS "asset_ownerId",
-  "asset"."libraryId" AS "asset_libraryId",
-  "asset"."deviceId" AS "asset_deviceId",
-  "asset"."type" AS "asset_type",
-  "asset"."originalPath" AS "asset_originalPath",
-  "asset"."resizePath" AS "asset_resizePath",
-  "asset"."webpPath" AS "asset_webpPath",
-  "asset"."thumbhash" AS "asset_thumbhash",
-  "asset"."encodedVideoPath" AS "asset_encodedVideoPath",
-  "asset"."createdAt" AS "asset_createdAt",
-  "asset"."updatedAt" AS "asset_updatedAt",
-  "asset"."deletedAt" AS "asset_deletedAt",
-  "asset"."fileCreatedAt" AS "asset_fileCreatedAt",
-  "asset"."localDateTime" AS "asset_localDateTime",
-  "asset"."fileModifiedAt" AS "asset_fileModifiedAt",
-  "asset"."isFavorite" AS "asset_isFavorite",
-  "asset"."isArchived" AS "asset_isArchived",
-  "asset"."isExternal" AS "asset_isExternal",
-  "asset"."isReadOnly" AS "asset_isReadOnly",
-  "asset"."isOffline" AS "asset_isOffline",
-  "asset"."checksum" AS "asset_checksum",
-  "asset"."duration" AS "asset_duration",
-  "asset"."isVisible" AS "asset_isVisible",
-  "asset"."livePhotoVideoId" AS "asset_livePhotoVideoId",
-  "asset"."originalFileName" AS "asset_originalFileName",
-  "asset"."sidecarPath" AS "asset_sidecarPath",
-  "asset"."stackId" AS "asset_stackId"
-FROM
-  "assets" "asset"
-WHERE
-  (
-    "asset"."fileCreatedAt" <= $1
-    AND 1 = 1
-    AND "asset"."ownerId" IN ($2)
-    AND 1 = 1
-    AND "asset"."isArchived" = $3
-  )
-  AND ("asset"."deletedAt" IS NULL)
-ORDER BY
-  "asset"."fileCreatedAt" DESC
-LIMIT
-  10001
-OFFSET
-  20000
 
 -- AssetRepository.getAllByDeviceId
 SELECT

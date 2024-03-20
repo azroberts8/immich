@@ -22,6 +22,7 @@ import {
   ISystemConfigRepository,
   IUserRepository,
   JobItem,
+  JobStatus,
   TimeBucketOptions,
 } from '../repositories';
 import { StorageCore, StorageFolder } from '../storage';
@@ -171,7 +172,16 @@ export class AssetService {
 
   async getMemoryLane(auth: AuthDto, dto: MemoryLaneDto): Promise<MemoryLaneResponseDto[]> {
     const currentYear = new Date().getFullYear();
-    const assets = await this.assetRepository.getByDayOfYear(auth.user.id, dto);
+
+    // get partners id
+    const userIds: string[] = [auth.user.id];
+    const partners = await this.partnerRepository.getAll(auth.user.id);
+    const partnersIds = partners
+      .filter((partner) => partner.sharedBy && partner.inTimeline)
+      .map((partner) => partner.sharedById);
+    userIds.push(...partnersIds);
+
+    const assets = await this.assetRepository.getByDayOfYear(userIds, dto);
 
     return _.chain(assets)
       .filter((asset) => asset.localDateTime.getFullYear() < currentYear)
@@ -314,7 +324,19 @@ export class AssetService {
     const { description, dateTimeOriginal, latitude, longitude, ...rest } = dto;
     await this.updateMetadata({ id, description, dateTimeOriginal, latitude, longitude });
 
-    const asset = await this.assetRepository.save({ id, ...rest });
+    await this.assetRepository.update({ id, ...rest });
+    const asset = await this.assetRepository.getById(id, {
+      exifInfo: true,
+      owner: true,
+      smartInfo: true,
+      tags: true,
+      faces: {
+        person: true,
+      },
+    });
+    if (!asset) {
+      throw new BadRequestException('Asset not found');
+    }
     return mapAsset(asset, { auth });
   }
 
@@ -384,7 +406,7 @@ export class AssetService {
     this.communicationRepository.send(ClientEvent.ASSET_STACK_UPDATE, auth.user.id, ids);
   }
 
-  async handleAssetDeletionCheck() {
+  async handleAssetDeletionCheck(): Promise<JobStatus> {
     const config = await this.configCore.getConfig();
     const trashedDays = config.trash.enabled ? config.trash.days : 0;
     const trashedBefore = DateTime.now()
@@ -400,10 +422,10 @@ export class AssetService {
       );
     }
 
-    return true;
+    return JobStatus.SUCCESS;
   }
 
-  async handleAssetDeletion(job: IAssetDeletionJob) {
+  async handleAssetDeletion(job: IAssetDeletionJob): Promise<JobStatus> {
     const { id, fromExternal } = job;
 
     const asset = await this.assetRepository.getById(id, {
@@ -416,12 +438,12 @@ export class AssetService {
     });
 
     if (!asset) {
-      return false;
+      return JobStatus.FAILED;
     }
 
     // Ignore requests that are not from external library job but is for an external asset
     if (!fromExternal && (!asset.library || asset.library.type === LibraryType.EXTERNAL)) {
-      return false;
+      return JobStatus.SKIPPED;
     }
 
     // Replace the parent of the stack children with a new asset
@@ -456,7 +478,7 @@ export class AssetService {
       await this.jobRepository.queue({ name: JobName.DELETE_FILES, data: { files } });
     }
 
-    return true;
+    return JobStatus.SUCCESS;
   }
 
   async deleteAll(auth: AuthDto, dto: AssetBulkDeleteDto): Promise<void> {

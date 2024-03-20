@@ -3,7 +3,6 @@ import {
   AuditService,
   DatabaseService,
   IDeleteFilesJob,
-  IStorageRepository,
   JobName,
   JobService,
   LibraryService,
@@ -16,7 +15,8 @@ import {
   SystemConfigService,
   UserService,
 } from '@app/domain';
-import { Inject, Injectable } from '@nestjs/common';
+import { otelSDK } from '@app/infra/instrumentation';
+import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class AppService {
@@ -34,7 +34,6 @@ export class AppService {
     private storageService: StorageService,
     private userService: UserService,
     private databaseService: DatabaseService,
-    @Inject(IStorageRepository) private storageRepository: IStorageRepository,
   ) {}
 
   async init() {
@@ -89,5 +88,6 @@ export class AppService {
   async teardown() {
     await this.libraryService.teardown();
     await this.metadataService.teardown();
+    await otelSDK.shutdown();
   }
 }

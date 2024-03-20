@@ -16,7 +16,7 @@ import { BadRequestException } from '@nestjs/common';
 import { newCommunicationRepositoryMock, newSystemConfigRepositoryMock } from '@test';
 import { QueueName } from '../job';
 import { ICommunicationRepository, ISearchRepository, ISystemConfigRepository, ServerEvent } from '../repositories';
-import { defaults, SystemConfigValidator } from './system-config.core';
+import { defaults } from './system-config.core';
 import { SystemConfigService } from './system-config.service';
 
 const updates: SystemConfigEntity[] = [
@@ -172,15 +172,6 @@ describe(SystemConfigService.name, () => {
     });
   });
 
-  describe('addValidator', () => {
-    it('should call the validator on config changes', async () => {
-      const validator: SystemConfigValidator = jest.fn();
-      sut.addValidator(validator);
-      await sut.updateConfig(defaults);
-      expect(validator).toHaveBeenCalledWith(defaults, defaults);
-    });
-  });
-
   describe('getConfig', () => {
     let warnLog: jest.SpyInstance;
 
@@ -209,7 +200,7 @@ describe(SystemConfigService.name, () => {
       await expect(sut.getConfig()).resolves.toEqual(updatedConfig);
     });
 
-    it('should load the config from a file', async () => {
+    it('should load the config from a json file', async () => {
       process.env.IMMICH_CONFIG_FILE = 'immich-config.json';
       const partialConfig = {
         ffmpeg: { crf: 30 },
@@ -222,6 +213,25 @@ describe(SystemConfigService.name, () => {
       await expect(sut.getConfig()).resolves.toEqual(updatedConfig);
 
       expect(configMock.readFile).toHaveBeenCalledWith('immich-config.json');
+    });
+
+    it('should load the config from a yaml file', async () => {
+      process.env.IMMICH_CONFIG_FILE = 'immich-config.yaml';
+      const partialConfig = `
+        ffmpeg:
+          crf: 30
+        oauth:
+          autoLaunch: true
+        trash:
+          days: 10
+        user:
+          deleteDelay: 15
+      `;
+      configMock.readFile.mockResolvedValue(partialConfig);
+
+      await expect(sut.getConfig()).resolves.toEqual(updatedConfig);
+
+      expect(configMock.readFile).toHaveBeenCalledWith('immich-config.yaml');
     });
 
     it('should accept an empty configuration file', async () => {
@@ -240,6 +250,17 @@ describe(SystemConfigService.name, () => {
 
       const config = await sut.getConfig();
       expect(config.machineLearning.url).toEqual('immich_machine_learning');
+    });
+
+    it('should warn for unknown options in yaml', async () => {
+      process.env.IMMICH_CONFIG_FILE = 'immich-config.yaml';
+      const partialConfig = `
+        unknownOption: true
+      `;
+      configMock.readFile.mockResolvedValue(partialConfig);
+
+      await sut.getConfig();
+      expect(warnLog).toHaveBeenCalled();
     });
 
     const tests = [
@@ -293,7 +314,7 @@ describe(SystemConfigService.name, () => {
           '{{y}}/{{y}}-{{WW}}/{{assetId}}',
           '{{album}}/{{filename}}',
         ],
-        secondOptions: ['s', 'ss'],
+        secondOptions: ['s', 'ss', 'SSS'],
         weekOptions: ['W', 'WW'],
         yearOptions: ['y', 'yy'],
       });
@@ -309,17 +330,6 @@ describe(SystemConfigService.name, () => {
       expect(communicationMock.broadcast).toHaveBeenCalled();
       expect(communicationMock.sendServerEvent).toHaveBeenCalledWith(ServerEvent.CONFIG_UPDATE);
       expect(configMock.saveAll).toHaveBeenCalledWith(updates);
-    });
-
-    it('should throw an error if the config is not valid', async () => {
-      const validator = jest.fn().mockRejectedValue('invalid config');
-
-      sut.addValidator(validator);
-
-      await expect(sut.updateConfig(updatedConfig)).rejects.toBeInstanceOf(BadRequestException);
-
-      expect(validator).toHaveBeenCalledWith(updatedConfig, defaults);
-      expect(configMock.saveAll).not.toHaveBeenCalled();
     });
 
     it('should throw an error if a config file is in use', async () => {

@@ -3,6 +3,7 @@ import {
   CreateUserDto as CreateDto,
   CreateProfileImageDto,
   CreateProfileImageResponseDto,
+  DeleteUserDto,
   UpdateUserDto as UpdateDto,
   UserResponseDto,
   UserService,
@@ -26,14 +27,13 @@ import {
 import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { NextFunction, Response } from 'express';
 import { AdminRoute, Auth, Authenticated, FileResponse } from '../app.guard';
-import { UseValidation, sendFile } from '../app.utils';
+import { sendFile } from '../app.utils';
 import { FileUploadInterceptor, Route } from '../interceptors';
 import { UUIDParamDto } from './dto/uuid-param.dto';
 
 @ApiTags('User')
 @Controller(Route.USER)
 @Authenticated()
-@UseValidation()
 export class UserController {
   constructor(private service: UserService) {}
 
@@ -66,8 +66,12 @@ export class UserController {
 
   @AdminRoute()
   @Delete(':id')
-  deleteUser(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<UserResponseDto> {
-    return this.service.delete(auth, id);
+  deleteUser(
+    @Auth() auth: AuthDto,
+    @Param() { id }: UUIDParamDto,
+    @Body() dto: DeleteUserDto,
+  ): Promise<UserResponseDto> {
+    return this.service.delete(auth, id, dto);
   }
 
   @AdminRoute()

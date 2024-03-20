@@ -1,10 +1,5 @@
-import {
-  AssetSearchOneToOneRelationOptions,
-  AssetSearchOptions,
-  ReverseGeocodeResult,
-  SearchExploreItem,
-} from '@app/domain';
-import { AssetEntity, AssetJobStatusEntity, AssetType, ExifEntity } from '@app/infra/entities';
+import { AssetSearchOptions, ReverseGeocodeResult, SearchExploreItem } from '@app/domain';
+import { AssetEntity, AssetJobStatusEntity, AssetOrder, AssetType, ExifEntity } from '@app/infra/entities';
 import { FindOptionsRelations, FindOptionsSelect } from 'typeorm';
 import { Paginated, PaginationOptions } from '../domain.util';
 
@@ -71,6 +66,7 @@ export interface AssetBuilderOptions {
 
 export interface TimeBucketOptions extends AssetBuilderOptions {
   size: TimeBucketSize;
+  order?: AssetOrder;
 }
 
 export interface TimeBucketItem {
@@ -94,6 +90,25 @@ export type AssetCreate = Pick<
 > &
   Partial<AssetEntity>;
 
+export type AssetWithoutRelations = Omit<
+  AssetEntity,
+  | 'livePhotoVideo'
+  | 'stack'
+  | 'albums'
+  | 'faces'
+  | 'owner'
+  | 'library'
+  | 'exifInfo'
+  | 'sharedLinks'
+  | 'smartInfo'
+  | 'smartSearch'
+  | 'tags'
+>;
+
+export type AssetUpdateOptions = Pick<AssetWithoutRelations, 'id'> & Partial<AssetWithoutRelations>;
+
+export type AssetUpdateAllOptions = Omit<Partial<AssetWithoutRelations>, 'id'>;
+
 export interface MonthDay {
   day: number;
   month: number;
@@ -114,6 +129,8 @@ export interface MetadataSearchOptions {
   numResults: number;
 }
 
+export type AssetPathEntity = Pick<AssetEntity, 'id' | 'originalPath' | 'isOffline'>;
+
 export const IAssetRepository = 'IAssetRepository';
 
 export interface IAssetRepository {
@@ -124,7 +141,8 @@ export interface IAssetRepository {
     relations?: FindOptionsRelations<AssetEntity>,
     select?: FindOptionsSelect<AssetEntity>,
   ): Promise<AssetEntity[]>;
-  getByDayOfYear(ownerId: string, monthDay: MonthDay): Promise<AssetEntity[]>;
+  getByIdsWithAllRelations(ids: string[]): Promise<AssetEntity[]>;
+  getByDayOfYear(ownerIds: string[], monthDay: MonthDay): Promise<AssetEntity[]>;
   getByChecksum(userId: string, checksum: Buffer): Promise<AssetEntity | null>;
   getByAlbumId(pagination: PaginationOptions, albumId: string): Paginated<AssetEntity>;
   getByUserId(pagination: PaginationOptions, userId: string, options?: AssetSearchOptions): Paginated<AssetEntity>;
@@ -134,19 +152,13 @@ export interface IAssetRepository {
   getRandom(userId: string, count: number): Promise<AssetEntity[]>;
   getFirstAssetForAlbumId(albumId: string): Promise<AssetEntity | null>;
   getLastUpdatedAssetForAlbumId(albumId: string): Promise<AssetEntity | null>;
-  getByLibraryId(libraryIds: string[]): Promise<AssetEntity[]>;
+  getLibraryAssetPaths(pagination: PaginationOptions, libraryId: string): Paginated<AssetPathEntity>;
   getByLibraryIdAndOriginalPath(libraryId: string, originalPath: string): Promise<AssetEntity | null>;
-  getPathsNotInLibrary(libraryId: string, originalPaths: string[]): Promise<string[]>;
-  updateOfflineLibraryAssets(libraryId: string, originalPaths: string[]): Promise<void>;
   deleteAll(ownerId: string): Promise<void>;
   getAll(pagination: PaginationOptions, options?: AssetSearchOptions): Paginated<AssetEntity>;
-  getAllByFileCreationDate(
-    pagination: PaginationOptions,
-    options?: AssetSearchOneToOneRelationOptions,
-  ): Paginated<AssetEntity>;
   getAllByDeviceId(userId: string, deviceId: string): Promise<string[]>;
-  updateAll(ids: string[], options: Partial<AssetEntity>): Promise<void>;
-  save(asset: Pick<AssetEntity, 'id'> & Partial<AssetEntity>): Promise<AssetEntity>;
+  updateAll(ids: string[], options: Partial<AssetUpdateAllOptions>): Promise<void>;
+  update(asset: AssetUpdateOptions): Promise<void>;
   remove(asset: AssetEntity): Promise<void>;
   softDeleteAll(ids: string[]): Promise<void>;
   restoreAll(ids: string[]): Promise<void>;

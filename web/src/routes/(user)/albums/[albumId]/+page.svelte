@@ -31,7 +31,7 @@
     notificationController,
   } from '$lib/components/shared-components/notification/notification';
   import UserAvatar from '$lib/components/shared-components/user-avatar.svelte';
-  import { AppRoute, dateFormats } from '$lib/constants';
+  import { AppRoute } from '$lib/constants';
   import { numberOfComments, setNumberOfComments, updateNumberOfComments } from '$lib/stores/activity.store';
   import { createAssetInteractionStore } from '$lib/stores/asset-interaction.store';
   import { assetViewingStore } from '$lib/stores/asset-viewing.store';
@@ -58,6 +58,7 @@
     updateAlbumInfo,
     type ActivityResponseDto,
     type UserResponseDto,
+    AssetOrder,
   } from '@immich/sdk';
   import {
     mdiArrowLeft,
@@ -74,6 +75,7 @@
   import AlbumTitle from '$lib/components/album-page/album-title.svelte';
   import AlbumDescription from '$lib/components/album-page/album-description.svelte';
   import { handlePromiseError } from '$lib/utils';
+  import AlbumSummary from '$lib/components/album-page/album-summary.svelte';
 
   export let data: PageData;
 
@@ -82,6 +84,7 @@
 
   $: album = data.album;
   $: albumId = album.id;
+  $: albumKey = `${albumId}_${albumOrder}`;
 
   $: {
     if (!album.isActivityEnabled && $numberOfComments === 0) {
@@ -110,9 +113,9 @@
   let reactions: ActivityResponseDto[] = [];
   let globalWidth: number;
   let assetGridWidth: number;
-  let textArea: HTMLTextAreaElement;
+  let albumOrder: AssetOrder | undefined = data.album.order;
 
-  $: assetStore = new AssetStore({ albumId });
+  $: assetStore = new AssetStore({ albumId, order: albumOrder });
   const assetInteractionStore = createAssetInteractionStore();
   const { isMultiSelectState, selectedAssets } = assetInteractionStore;
 
@@ -221,20 +224,6 @@
     handlePromiseError(getNumberOfComments());
   }
 
-  const handleKeypress = (event: KeyboardEvent) => {
-    if (event.target !== textArea) {
-      return;
-    }
-    const ctrl = event.ctrlKey;
-    switch (event.key) {
-      case 'Enter': {
-        if (ctrl && event.target === textArea) {
-          textArea.blur();
-        }
-      }
-    }
-  };
-
   const handleStartSlideshow = async () => {
     const asset =
       $slideshowNavigation === SlideshowNavigation.Shuffle ? await assetStore.getRandomAsset() : assetStore.assets[0];
@@ -278,31 +267,6 @@
 
   const refreshAlbum = async () => {
     album = await getAlbumInfo({ id: album.id, withoutAssets: true });
-  };
-
-  const getDateRange = () => {
-    const { startDate, endDate } = album;
-
-    let start = '';
-    let end = '';
-
-    if (startDate) {
-      start = new Date(startDate).toLocaleDateString($locale, dateFormats.album);
-    }
-
-    if (endDate) {
-      end = new Date(endDate).toLocaleDateString($locale, dateFormats.album);
-    }
-
-    if (startDate && endDate && start !== end) {
-      return `${start} - ${end}`;
-    }
-
-    if (start) {
-      return start;
-    }
-
-    return '';
   };
 
   const handleAddAssets = async () => {
@@ -389,6 +353,11 @@
     }
   };
 
+  const handleRemoveAssets = async (assetIds: string[]) => {
+    assetStore.removeAssets(assetIds);
+    await refreshAlbum();
+  };
+
   const handleUpdateThumbnail = async (assetId: string) => {
     if (viewMode !== ViewMode.SELECT_THUMBNAIL) {
       return;
@@ -410,8 +379,6 @@
   };
 </script>
 
-<svelte:window on:keydown={handleKeypress} />
-
 <div class="flex overflow-hidden" bind:clientWidth={globalWidth}>
   <div class="relative w-full shrink">
     {#if $isMultiSelectState}
@@ -429,10 +396,10 @@
           {/if}
           <DownloadAction menuItem filename="{album.albumName}.zip" />
           {#if isOwned || isAllUserOwned}
-            <RemoveFromAlbum menuItem bind:album onRemove={(assetIds) => assetStore.removeAssets(assetIds)} />
+            <RemoveFromAlbum menuItem bind:album onRemove={handleRemoveAssets} />
           {/if}
           {#if isAllUserOwned}
-            <DeleteAssets menuItem onAssetDelete={(assetIds) => assetStore.removeAssets(assetIds)} />
+            <DeleteAssets menuItem onAssetDelete={handleRemoveAssets} />
             <ChangeDate menuItem />
             <ChangeLocation menuItem />
           {/if}
@@ -469,9 +436,7 @@
                   <CircleIconButton title="Album options" on:click={handleOpenAlbumOptions} icon={mdiDotsVertical}>
                     {#if viewMode === ViewMode.ALBUM_OPTIONS}
                       <ContextMenu {...contextMenuPosition}>
-                        {#if album.assetCount !== 0}
-                          <MenuOption on:click={handleStartSlideshow} text="Slideshow" />
-                        {/if}
+                        <MenuOption on:click={handleStartSlideshow} text="Slideshow" />
                         <MenuOption on:click={() => (viewMode = ViewMode.SELECT_THUMBNAIL)} text="Set album cover" />
                         <MenuOption on:click={() => (viewMode = ViewMode.OPTIONS)} text="Options" />
                       </ContextMenu>
@@ -485,7 +450,7 @@
               <Button
                 size="sm"
                 rounded="lg"
-                disabled={album.assetCount == 0}
+                disabled={album.assetCount === 0}
                 on:click={() => (viewMode = ViewMode.SELECT_USERS)}
               >
                 Share
@@ -533,7 +498,7 @@
       style={`width:${assetGridWidth}px`}
     >
       <!-- Use key because AssetGrid can't deal with changing stores -->
-      {#key albumId}
+      {#key albumKey}
         {#if viewMode === ViewMode.SELECT_ASSETS}
           <AssetGrid
             assetStore={timelineStore}
@@ -557,13 +522,8 @@
               <section class="pt-24">
                 <AlbumTitle id={album.id} albumName={album.albumName} {isOwned} />
 
-                <!-- ALBUM SUMMARY -->
                 {#if album.assetCount > 0}
-                  <span class="my-2 flex gap-2 text-sm font-medium text-gray-500" data-testid="album-details">
-                    <p class="">{getDateRange()}</p>
-                    <p>·</p>
-                    <p>{album.assetCount} items</p>
-                  </span>
+                  <AlbumSummary {album} />
                 {/if}
 
                 <!-- ALBUM SHARING -->
@@ -705,7 +665,9 @@
 {#if viewMode === ViewMode.OPTIONS && $user}
   <AlbumOptions
     {album}
+    order={albumOrder}
     user={$user}
+    onChangeOrder={(order) => (albumOrder = order)}
     on:close={() => (viewMode = ViewMode.VIEW)}
     on:toggleEnableActivity={handleToggleEnableActivity}
     on:showSelectSharedUser={() => (viewMode = ViewMode.SELECT_USERS)}

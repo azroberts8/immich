@@ -2,10 +2,12 @@ import {
   AssetBuilderOptions,
   AssetCreate,
   AssetExploreFieldOptions,
-  AssetSearchOneToOneRelationOptions,
+  AssetPathEntity,
   AssetSearchOptions,
   AssetStats,
   AssetStatsOptions,
+  AssetUpdateAllOptions,
+  AssetUpdateOptions,
   IAssetRepository,
   LivePhotoSearchOptions,
   MapMarker,
@@ -36,9 +38,10 @@ import {
   Not,
   Repository,
 } from 'typeorm';
-import { AssetEntity, AssetJobStatusEntity, AssetType, ExifEntity, SmartInfoEntity } from '../entities';
+import { AssetEntity, AssetJobStatusEntity, AssetOrder, AssetType, ExifEntity, SmartInfoEntity } from '../entities';
 import { DummyValue, GenerateSql } from '../infra.util';
 import { Chunked, ChunkedArray, OptionalBetween, paginate, paginatedBuilder, searchAssetBuilder } from '../infra.utils';
+import { Instrumentation } from '../instrumentation';
 
 const truncateMap: Record<TimeBucketSize, string> = {
   [TimeBucketSize.DAY]: 'day',
@@ -50,6 +53,7 @@ const dateTrunc = (options: TimeBucketOptions) =>
     truncateMap[options.size]
   }', (asset."localDateTime" at time zone 'UTC')) at time zone 'UTC')::timestamptz`;
 
+@Instrumentation()
 @Injectable()
 export class AssetRepository implements IAssetRepository {
   constructor(
@@ -107,18 +111,18 @@ export class AssetRepository implements IAssetRepository {
   }
 
   @GenerateSql({ params: [DummyValue.UUID, { day: 1, month: 1 }] })
-  getByDayOfYear(ownerId: string, { day, month }: MonthDay): Promise<AssetEntity[]> {
+  getByDayOfYear(ownerIds: string[], { day, month }: MonthDay): Promise<AssetEntity[]> {
     return this.repository
       .createQueryBuilder('entity')
       .where(
-        `entity.ownerId = :ownerId
+        `entity.ownerId IN (:...ownerIds)
       AND entity.isVisible = true
       AND entity.isArchived = false
       AND entity.resizePath IS NOT NULL
       AND EXTRACT(DAY FROM entity.localDateTime AT TIME ZONE 'UTC') = :day
       AND EXTRACT(MONTH FROM entity.localDateTime AT TIME ZONE 'UTC') = :month`,
         {
-          ownerId,
+          ownerIds,
           day,
           month,
         },
@@ -135,8 +139,20 @@ export class AssetRepository implements IAssetRepository {
     relations?: FindOptionsRelations<AssetEntity>,
     select?: FindOptionsSelect<AssetEntity>,
   ): Promise<AssetEntity[]> {
-    if (!relations) {
-      relations = {
+    return this.repository.find({
+      where: { id: In(ids) },
+      relations,
+      select,
+      withDeleted: true,
+    });
+  }
+
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  @ChunkedArray()
+  getByIdsWithAllRelations(ids: string[]): Promise<AssetEntity[]> {
+    return this.repository.find({
+      where: { id: In(ids) },
+      relations: {
         exifInfo: true,
         smartInfo: true,
         tags: true,
@@ -146,13 +162,7 @@ export class AssetRepository implements IAssetRepository {
         stack: {
           assets: true,
         },
-      };
-    }
-
-    return this.repository.find({
-      where: { id: In(ids) },
-      relations,
-      select,
+      },
       withDeleted: true,
     });
   }
@@ -185,10 +195,10 @@ export class AssetRepository implements IAssetRepository {
   }
 
   @GenerateSql({ params: [[DummyValue.UUID]] })
-  @ChunkedArray()
-  getByLibraryId(libraryIds: string[]): Promise<AssetEntity[]> {
-    return this.repository.find({
-      where: { library: { id: In(libraryIds) } },
+  getLibraryAssetPaths(pagination: PaginationOptions, libraryId: string): Paginated<AssetPathEntity> {
+    return paginate(this.repository, pagination, {
+      select: { id: true, originalPath: true, isOffline: true },
+      where: { library: { id: libraryId } },
     });
   }
 
@@ -233,29 +243,6 @@ export class AssetRepository implements IAssetRepository {
     });
   }
 
-  @GenerateSql({
-    params: [
-      { skip: 20_000, take: 10_000 },
-      {
-        takenBefore: DummyValue.DATE,
-        userIds: [DummyValue.UUID],
-      },
-    ],
-  })
-  getAllByFileCreationDate(
-    pagination: PaginationOptions,
-    options: AssetSearchOneToOneRelationOptions = {},
-  ): Paginated<AssetEntity> {
-    let builder = this.repository.createQueryBuilder('asset');
-    builder = searchAssetBuilder(builder, options);
-    builder.orderBy('asset.fileCreatedAt', options.orderDirection ?? 'DESC');
-    return paginatedBuilder<AssetEntity>(builder, {
-      mode: PaginationMode.LIMIT_OFFSET,
-      skip: pagination.skip,
-      take: pagination.take,
-    });
-  }
-
   /**
    * Get assets by device's Id on the database
    * @param ownerId
@@ -290,7 +277,7 @@ export class AssetRepository implements IAssetRepository {
 
   @GenerateSql({ params: [[DummyValue.UUID], { deviceId: DummyValue.STRING }] })
   @Chunked()
-  async updateAll(ids: string[], options: Partial<AssetEntity>): Promise<void> {
+  async updateAll(ids: string[], options: AssetUpdateAllOptions): Promise<void> {
     await this.repository.update({ id: In(ids) }, options);
   }
 
@@ -304,21 +291,8 @@ export class AssetRepository implements IAssetRepository {
     await this.repository.restore({ id: In(ids) });
   }
 
-  async save(asset: Partial<AssetEntity>): Promise<AssetEntity> {
-    const { id } = await this.repository.save(asset);
-    return this.repository.findOneOrFail({
-      where: { id },
-      relations: {
-        exifInfo: true,
-        owner: true,
-        smartInfo: true,
-        tags: true,
-        faces: {
-          person: true,
-        },
-      },
-      withDeleted: true,
-    });
+  async update(asset: AssetUpdateOptions): Promise<void> {
+    await this.repository.update(asset.id, asset);
   }
 
   async remove(asset: AssetEntity): Promise<void> {
@@ -622,7 +596,7 @@ export class AssetRepository implements IAssetRepository {
       .select(`COUNT(asset.id)::int`, 'count')
       .addSelect(truncated, 'timeBucket')
       .groupBy(truncated)
-      .orderBy(truncated, 'DESC')
+      .orderBy(truncated, options.order === AssetOrder.ASC ? 'ASC' : 'DESC')
       .getRawMany();
   }
 
@@ -635,7 +609,7 @@ export class AssetRepository implements IAssetRepository {
         // First sort by the day in localtime (put it in the right bucket)
         .orderBy(truncated, 'DESC')
         // and then sort by the actual time
-        .addOrderBy('asset.fileCreatedAt', 'DESC')
+        .addOrderBy('asset.fileCreatedAt', options.order === AssetOrder.ASC ? 'ASC' : 'DESC')
         .getMany()
     );
   }

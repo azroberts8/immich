@@ -17,6 +17,7 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { CronExpression } from '@nestjs/schedule';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { load as loadYaml } from 'js-yaml';
 import * as _ from 'lodash';
 import { Subject } from 'rxjs';
 import { QueueName } from '../job/job.constants';
@@ -166,7 +167,6 @@ let instance: SystemConfigCore | null;
 @Injectable()
 export class SystemConfigCore {
   private logger = new ImmichLogger(SystemConfigCore.name);
-  private validators: SystemConfigValidator[] = [];
   private configCache: SystemConfigEntity<SystemConfigValue>[] | null = null;
 
   public config$ = new Subject<SystemConfig>();
@@ -244,10 +244,6 @@ export class SystemConfigCore {
     return defaults;
   }
 
-  public addValidator(validator: SystemConfigValidator) {
-    this.validators.push(validator);
-  }
-
   public async getConfig(force = false): Promise<SystemConfig> {
     const configFilePath = process.env.IMMICH_CONFIG_FILE;
     const config = _.cloneDeep(defaults);
@@ -280,17 +276,6 @@ export class SystemConfigCore {
   public async updateConfig(newConfig: SystemConfig): Promise<SystemConfig> {
     if (await this.hasFeature(FeatureFlag.CONFIG_FILE)) {
       throw new BadRequestException('Cannot update configuration while IMMICH_CONFIG_FILE is in use');
-    }
-
-    const oldConfig = await this.getConfig();
-
-    try {
-      for (const validator of this.validators) {
-        await validator(newConfig, oldConfig);
-      }
-    } catch (error) {
-      this.logger.warn(`Unable to save system config due to a validation error: ${error}`);
-      throw new BadRequestException(error instanceof Error ? error.message : error);
     }
 
     const updates: SystemConfigEntity[] = [];
@@ -341,19 +326,19 @@ export class SystemConfigCore {
     if (force || !this.configCache) {
       try {
         const file = await this.repository.readFile(filepath);
-        const json = JSON.parse(file.toString());
+        const config = loadYaml(file.toString()) as any;
         const overrides: SystemConfigEntity<SystemConfigValue>[] = [];
 
         for (const key of Object.values(SystemConfigKey)) {
-          const value = _.get(json, key);
-          this.unsetDeep(json, key);
+          const value = _.get(config, key);
+          this.unsetDeep(config, key);
           if (value !== undefined) {
             overrides.push({ key, value });
           }
         }
 
-        if (!_.isEmpty(json)) {
-          this.logger.warn(`Unknown keys found: ${JSON.stringify(json, null, 2)}`);
+        if (!_.isEmpty(config)) {
+          this.logger.warn(`Unknown keys found: ${JSON.stringify(config, null, 2)}`);
         }
 
         this.configCache = overrides;

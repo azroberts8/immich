@@ -15,6 +15,8 @@ import {
   newStorageRepositoryMock,
   newSystemConfigRepositoryMock,
   newUserRepositoryMock,
+  partnerStub,
+  userStub,
 } from '@test';
 import { when } from 'jest-when';
 import { JobName } from '../job';
@@ -317,6 +319,7 @@ describe(AssetService.name, () => {
     });
 
     it('should set the title correctly', async () => {
+      partnerMock.getAll.mockResolvedValue([]);
       assetMock.getByDayOfYear.mockResolvedValue([assetStub.image, assetStub.imageFrom2015]);
 
       await expect(sut.getMemoryLane(authStub.admin, { day: 15, month: 1 })).resolves.toEqual([
@@ -324,7 +327,17 @@ describe(AssetService.name, () => {
         { title: '9 years since...', assets: [mapAsset(assetStub.imageFrom2015)] },
       ]);
 
-      expect(assetMock.getByDayOfYear.mock.calls).toEqual([[authStub.admin.user.id, { day: 15, month: 1 }]]);
+      expect(assetMock.getByDayOfYear.mock.calls).toEqual([[[authStub.admin.user.id], { day: 15, month: 1 }]]);
+    });
+
+    it('should get memories with partners with inTimeline enabled', async () => {
+      partnerMock.getAll.mockResolvedValue([partnerStub.user1ToAdmin1]);
+
+      await sut.getMemoryLane(authStub.admin, { day: 15, month: 1 });
+
+      expect(assetMock.getByDayOfYear.mock.calls).toEqual([
+        [[authStub.admin.user.id, userStub.user1.id], { day: 15, month: 1 }],
+      ]);
     });
   });
 
@@ -535,19 +548,19 @@ describe(AssetService.name, () => {
       await expect(sut.update(authStub.admin, 'asset-1', { isArchived: false })).rejects.toBeInstanceOf(
         BadRequestException,
       );
-      expect(assetMock.save).not.toHaveBeenCalled();
+      expect(assetMock.update).not.toHaveBeenCalled();
     });
 
     it('should update the asset', async () => {
       accessMock.asset.checkOwnerAccess.mockResolvedValue(new Set(['asset-1']));
-      assetMock.save.mockResolvedValue(assetStub.image);
+      assetMock.getById.mockResolvedValue(assetStub.image);
       await sut.update(authStub.admin, 'asset-1', { isFavorite: true });
-      expect(assetMock.save).toHaveBeenCalledWith({ id: 'asset-1', isFavorite: true });
+      expect(assetMock.update).toHaveBeenCalledWith({ id: 'asset-1', isFavorite: true });
     });
 
     it('should update the exif description', async () => {
       accessMock.asset.checkOwnerAccess.mockResolvedValue(new Set(['asset-1']));
-      assetMock.save.mockResolvedValue(assetStub.image);
+      assetMock.getById.mockResolvedValue(assetStub.image);
       await sut.update(authStub.admin, 'asset-1', { description: 'Test description' });
       expect(assetMock.upsertExif).toHaveBeenCalledWith({ assetId: 'asset-1', description: 'Test description' });
     });

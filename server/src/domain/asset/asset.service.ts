@@ -172,7 +172,16 @@ export class AssetService {
 
   async getMemoryLane(auth: AuthDto, dto: MemoryLaneDto): Promise<MemoryLaneResponseDto[]> {
     const currentYear = new Date().getFullYear();
-    const assets = await this.assetRepository.getByDayOfYear(auth.user.id, dto);
+
+    // get partners id
+    const userIds: string[] = [auth.user.id];
+    const partners = await this.partnerRepository.getAll(auth.user.id);
+    const partnersIds = partners
+      .filter((partner) => partner.sharedBy && partner.inTimeline)
+      .map((partner) => partner.sharedById);
+    userIds.push(...partnersIds);
+
+    const assets = await this.assetRepository.getByDayOfYear(userIds, dto);
 
     return _.chain(assets)
       .filter((asset) => asset.localDateTime.getFullYear() < currentYear)
@@ -315,7 +324,19 @@ export class AssetService {
     const { description, dateTimeOriginal, latitude, longitude, ...rest } = dto;
     await this.updateMetadata({ id, description, dateTimeOriginal, latitude, longitude });
 
-    const asset = await this.assetRepository.save({ id, ...rest });
+    await this.assetRepository.update({ id, ...rest });
+    const asset = await this.assetRepository.getById(id, {
+      exifInfo: true,
+      owner: true,
+      smartInfo: true,
+      tags: true,
+      faces: {
+        person: true,
+      },
+    });
+    if (!asset) {
+      throw new BadRequestException('Asset not found');
+    }
     return mapAsset(asset, { auth });
   }
 

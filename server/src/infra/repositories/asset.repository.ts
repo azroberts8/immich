@@ -6,6 +6,8 @@ import {
   AssetSearchOptions,
   AssetStats,
   AssetStatsOptions,
+  AssetUpdateAllOptions,
+  AssetUpdateOptions,
   IAssetRepository,
   LivePhotoSearchOptions,
   MapMarker,
@@ -109,18 +111,18 @@ export class AssetRepository implements IAssetRepository {
   }
 
   @GenerateSql({ params: [DummyValue.UUID, { day: 1, month: 1 }] })
-  getByDayOfYear(ownerId: string, { day, month }: MonthDay): Promise<AssetEntity[]> {
+  getByDayOfYear(ownerIds: string[], { day, month }: MonthDay): Promise<AssetEntity[]> {
     return this.repository
       .createQueryBuilder('entity')
       .where(
-        `entity.ownerId = :ownerId
+        `entity.ownerId IN (:...ownerIds)
       AND entity.isVisible = true
       AND entity.isArchived = false
       AND entity.resizePath IS NOT NULL
       AND EXTRACT(DAY FROM entity.localDateTime AT TIME ZONE 'UTC') = :day
       AND EXTRACT(MONTH FROM entity.localDateTime AT TIME ZONE 'UTC') = :month`,
         {
-          ownerId,
+          ownerIds,
           day,
           month,
         },
@@ -275,7 +277,7 @@ export class AssetRepository implements IAssetRepository {
 
   @GenerateSql({ params: [[DummyValue.UUID], { deviceId: DummyValue.STRING }] })
   @Chunked()
-  async updateAll(ids: string[], options: Partial<AssetEntity>): Promise<void> {
+  async updateAll(ids: string[], options: AssetUpdateAllOptions): Promise<void> {
     await this.repository.update({ id: In(ids) }, options);
   }
 
@@ -289,21 +291,8 @@ export class AssetRepository implements IAssetRepository {
     await this.repository.restore({ id: In(ids) });
   }
 
-  async save(asset: Partial<AssetEntity>): Promise<AssetEntity> {
-    const { id } = await this.repository.save(asset);
-    return this.repository.findOneOrFail({
-      where: { id },
-      relations: {
-        exifInfo: true,
-        owner: true,
-        smartInfo: true,
-        tags: true,
-        faces: {
-          person: true,
-        },
-      },
-      withDeleted: true,
-    });
+  async update(asset: AssetUpdateOptions): Promise<void> {
+    await this.repository.update(asset.id, asset);
   }
 
   async remove(asset: AssetEntity): Promise<void> {

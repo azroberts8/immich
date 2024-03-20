@@ -1,6 +1,6 @@
-import { LibraryResponseDto, LoginResponseDto } from '@app/domain';
+import { LoginResponseDto } from '@app/domain';
 import { LibraryController } from '@app/immich';
-import { AssetType, LibraryType } from '@app/infra/entities';
+import { LibraryType } from '@app/infra/entities';
 import { errorStub, uuidStub } from '@test/fixtures';
 import * as fs from 'node:fs';
 import request from 'supertest';
@@ -41,6 +41,7 @@ describe(`${LibraryController.name} (e2e)`, () => {
       });
 
       const library = await api.libraryApi.create(server, admin.accessToken, {
+        ownerId: admin.userId,
         type: LibraryType.EXTERNAL,
         importPaths: [`${IMMICH_TEST_ASSET_TEMP_PATH}`],
       });
@@ -60,11 +61,11 @@ describe(`${LibraryController.name} (e2e)`, () => {
         expect.arrayContaining([
           expect.objectContaining({
             isOffline: true,
-            originalFileName: 'el_torcal_rocks',
+            originalFileName: 'el_torcal_rocks.jpg',
           }),
           expect.objectContaining({
             isOffline: true,
-            originalFileName: 'tanners_ridge',
+            originalFileName: 'tanners_ridge.jpg',
           }),
         ]),
       );
@@ -72,6 +73,7 @@ describe(`${LibraryController.name} (e2e)`, () => {
 
     it('should scan new files', async () => {
       const library = await api.libraryApi.create(server, admin.accessToken, {
+        ownerId: admin.userId,
         type: LibraryType.EXTERNAL,
         importPaths: [`${IMMICH_TEST_ASSET_TEMP_PATH}`],
       });
@@ -95,10 +97,10 @@ describe(`${LibraryController.name} (e2e)`, () => {
       expect(assets).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            originalFileName: 'el_torcal_rocks',
+            originalFileName: 'el_torcal_rocks.jpg',
           }),
           expect.objectContaining({
-            originalFileName: 'silver_fir',
+            originalFileName: 'silver_fir.jpg',
           }),
         ]),
       );
@@ -107,6 +109,7 @@ describe(`${LibraryController.name} (e2e)`, () => {
     describe('with refreshModifiedFiles=true', () => {
       it('should reimport modified files', async () => {
         const library = await api.libraryApi.create(server, admin.accessToken, {
+          ownerId: admin.userId,
           type: LibraryType.EXTERNAL,
           importPaths: [`${IMMICH_TEST_ASSET_TEMP_PATH}`],
         });
@@ -134,7 +137,7 @@ describe(`${LibraryController.name} (e2e)`, () => {
 
         expect(assets[0]).toEqual(
           expect.objectContaining({
-            originalFileName: 'el_torcal_rocks',
+            originalFileName: 'el_torcal_rocks.jpg',
             exifInfo: expect.objectContaining({
               dateTimeOriginal: '2023-09-25T08:33:30.880Z',
               exifImageHeight: 534,
@@ -153,6 +156,7 @@ describe(`${LibraryController.name} (e2e)`, () => {
 
       it('should not reimport unmodified files', async () => {
         const library = await api.libraryApi.create(server, admin.accessToken, {
+          ownerId: admin.userId,
           type: LibraryType.EXTERNAL,
           importPaths: [`${IMMICH_TEST_ASSET_TEMP_PATH}`],
         });
@@ -180,7 +184,7 @@ describe(`${LibraryController.name} (e2e)`, () => {
 
         expect(assets[0]).toEqual(
           expect.objectContaining({
-            originalFileName: 'el_torcal_rocks',
+            originalFileName: 'el_torcal_rocks.jpg',
             exifInfo: expect.objectContaining({
               dateTimeOriginal: '2012-08-05T11:39:59.000Z',
             }),
@@ -192,6 +196,7 @@ describe(`${LibraryController.name} (e2e)`, () => {
     describe('with refreshAllFiles=true', () => {
       it('should reimport all files', async () => {
         const library = await api.libraryApi.create(server, admin.accessToken, {
+          ownerId: admin.userId,
           type: LibraryType.EXTERNAL,
           importPaths: [`${IMMICH_TEST_ASSET_TEMP_PATH}`],
         });
@@ -219,7 +224,7 @@ describe(`${LibraryController.name} (e2e)`, () => {
 
         expect(assets[0]).toEqual(
           expect.objectContaining({
-            originalFileName: 'el_torcal_rocks',
+            originalFileName: 'el_torcal_rocks.jpg',
             exifInfo: expect.objectContaining({
               exifImageHeight: 534,
               exifImageWidth: 800,
@@ -251,6 +256,7 @@ describe(`${LibraryController.name} (e2e)`, () => {
       });
 
       const library = await api.libraryApi.create(server, admin.accessToken, {
+        ownerId: admin.userId,
         type: LibraryType.EXTERNAL,
         importPaths: [`${IMMICH_TEST_ASSET_TEMP_PATH}`],
       });
@@ -277,6 +283,7 @@ describe(`${LibraryController.name} (e2e)`, () => {
 
     it('should not remove online files', async () => {
       const library = await api.libraryApi.create(server, admin.accessToken, {
+        ownerId: admin.userId,
         type: LibraryType.EXTERNAL,
         importPaths: [`${IMMICH_TEST_ASSET_PATH}/albums/nature`],
       });

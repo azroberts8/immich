@@ -3,12 +3,12 @@
   import { AppRoute, AssetAction } from '$lib/constants';
   import type { AssetInteractionStore } from '$lib/stores/asset-interaction.store';
   import { assetViewingStore } from '$lib/stores/asset-viewing.store';
-  import { BucketPosition, type AssetStore, type Viewport } from '$lib/stores/assets.store';
+  import { BucketPosition, isSelectingAllAssets, type AssetStore, type Viewport } from '$lib/stores/assets.store';
   import { locale, showDeleteModal } from '$lib/stores/preferences.store';
   import { isSearchEnabled } from '$lib/stores/search.store';
   import { featureFlags } from '$lib/stores/server-config.store';
   import { deleteAssets } from '$lib/utils/actions';
-  import { shortcuts, type ShortcutOptions, matchesShortcut } from '$lib/utils/shortcut';
+  import { type ShortcutOptions, shortcuts } from '$lib/utils/shortcut';
   import { formatGroupTitle, splitBucketIntoDateGroups } from '$lib/utils/timeline-util';
   import type { AlbumResponseDto, AssetResponseDto } from '@immich/sdk';
   import { DateTime } from 'luxon';
@@ -18,8 +18,10 @@
   import Scrollbar from '../shared-components/scrollbar/scrollbar.svelte';
   import ShowShortcuts from '../shared-components/show-shortcuts.svelte';
   import AssetDateGroup from './asset-date-group.svelte';
+  import { stackAssets } from '$lib/utils/asset-utils';
   import DeleteAssetDialog from './delete-asset-dialog.svelte';
   import { handlePromiseError } from '$lib/utils';
+  import { selectAllAssets } from '$lib/utils/asset-utils';
 
   export let isSelectionMode = false;
   export let singleSelect = false;
@@ -84,6 +86,13 @@
     handlePromiseError(trashOrDelete(true));
   };
 
+  const onStackAssets = async () => {
+    await stackAssets(Array.from($selectedAssets), (ids) => {
+      assetStore.removeAssets(ids);
+      dispatch('escape');
+    });
+  };
+
   $: shortcutList = (() => {
     if ($isSearchEnabled || $showAssetViewer) {
       return [];
@@ -93,12 +102,15 @@
       { shortcut: { key: 'Escape' }, onShortcut: () => dispatch('escape') },
       { shortcut: { key: '?', shift: true }, onShortcut: () => (showShortcuts = !showShortcuts) },
       { shortcut: { key: '/' }, onShortcut: () => goto(AppRoute.EXPLORE) },
+      { shortcut: { key: 'A', ctrl: true }, onShortcut: () => selectAllAssets(assetStore, assetInteractionStore) },
     ];
 
     if ($isMultiSelectState) {
       shortcuts.push(
         { shortcut: { key: 'Delete' }, onShortcut: onDelete },
         { shortcut: { key: 'Delete', shift: true }, onShortcut: onForceDelete },
+        { shortcut: { key: 'D', ctrl: true }, onShortcut: () => deselectAllAssets() },
+        { shortcut: { key: 's' }, onShortcut: () => onStackAssets() },
       );
     }
 
@@ -125,26 +137,22 @@
   }
 
   const handlePrevious = async () => {
-    const previousAsset = await assetStore.getPreviousAssetId($viewingAsset.id);
+    const previousAsset = await assetStore.getPreviousAsset($viewingAsset.id);
 
     if (previousAsset) {
-      const preloadId = await assetStore.getPreviousAssetId(previousAsset);
-      preloadId
-        ? await assetViewingStore.setAssetId(previousAsset, [preloadId])
-        : await assetViewingStore.setAssetId(previousAsset);
+      const preloadAsset = await assetStore.getPreviousAsset(previousAsset.id);
+      assetViewingStore.setAsset(previousAsset, preloadAsset ? [preloadAsset] : []);
     }
 
     return !!previousAsset;
   };
 
   const handleNext = async () => {
-    const nextAsset = await assetStore.getNextAssetId($viewingAsset.id);
+    const nextAsset = await assetStore.getNextAsset($viewingAsset.id);
 
     if (nextAsset) {
-      const preloadId = await assetStore.getNextAssetId(nextAsset);
-      preloadId
-        ? await assetViewingStore.setAssetId(nextAsset, [preloadId])
-        : await assetViewingStore.setAssetId(nextAsset);
+      const preloadAsset = await assetStore.getNextAsset(nextAsset.id);
+      assetViewingStore.setAsset(nextAsset, preloadAsset ? [preloadAsset] : []);
     }
 
     return !!nextAsset;
@@ -202,12 +210,17 @@
 
   let shiftKeyIsDown = false;
 
+  const deselectAllAssets = () => {
+    $isSelectingAllAssets = false;
+    assetInteractionStore.clearMultiselect();
+  };
+
   const onKeyDown = (event: KeyboardEvent) => {
     if ($isSearchEnabled) {
       return;
     }
 
-    if (matchesShortcut(event, { key: 'Shift', shift: true })) {
+    if (event.key === 'Shift') {
       event.preventDefault();
       shiftKeyIsDown = true;
     }
@@ -218,7 +231,7 @@
       return;
     }
 
-    if (matchesShortcut(event, { key: 'Shift', shift: false })) {
+    if (event.key === 'Shift') {
       event.preventDefault();
       shiftKeyIsDown = false;
     }
@@ -380,7 +393,7 @@
 <!-- Right margin MUST be equal to the width of immich-scrubbable-scrollbar -->
 <section
   id="asset-grid"
-  class="scrollbar-hidden h-full overflow-y-auto pb-[60px] {isEmpty ? 'm-0' : 'mr-[60px]'}"
+  class="scrollbar-hidden h-full overflow-y-auto pb-[60px] {isEmpty ? 'm-0' : 'ml-4 tall:ml-0 mr-[60px]'}"
   bind:clientHeight={viewport.height}
   bind:clientWidth={viewport.width}
   bind:this={element}

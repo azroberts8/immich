@@ -1,17 +1,13 @@
-import { LoginResponseDto } from '@app/domain';
-import { LibraryController } from '@app/immich';
-import { LibraryType } from '@app/infra/entities';
-import { errorStub, uuidStub } from '@test/fixtures';
-import * as fs from 'node:fs';
+import { api } from 'e2e/client';
+import fs from 'node:fs';
+import { LibraryController } from 'src/controllers/library.controller';
+import { LoginResponseDto } from 'src/dtos/auth.dto';
+import { LibraryType } from 'src/entities/library.entity';
 import request from 'supertest';
+import { errorStub } from 'test/fixtures/error.stub';
+import { uuidStub } from 'test/fixtures/uuid.stub';
+import { IMMICH_TEST_ASSET_PATH, IMMICH_TEST_ASSET_TEMP_PATH, restoreTempFolder, testApp } from 'test/utils';
 import { utimes } from 'utimes';
-import {
-  IMMICH_TEST_ASSET_PATH,
-  IMMICH_TEST_ASSET_TEMP_PATH,
-  restoreTempFolder,
-  testApp,
-} from '../../../src/test-utils/utils';
-import { api } from '../../client';
 
 describe(`${LibraryController.name} (e2e)`, () => {
   let server: any;

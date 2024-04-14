@@ -1,11 +1,10 @@
-import { IAssetRepository } from '@app/domain';
+import { IAssetRepository } from 'src/interfaces/asset.interface';
 
 export const newAssetRepositoryMock = (): jest.Mocked<IAssetRepository> => {
   return {
     create: jest.fn(),
     upsertExif: jest.fn(),
     upsertJobStatus: jest.fn(),
-    getByDate: jest.fn(),
     getByDayOfYear: jest.fn(),
     getByIds: jest.fn().mockResolvedValue([]),
     getByIdsWithAllRelations: jest.fn().mockResolvedValue([]),

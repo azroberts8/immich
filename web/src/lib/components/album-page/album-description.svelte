@@ -2,6 +2,7 @@
   import { autoGrowHeight } from '$lib/utils/autogrow';
   import { updateAlbumInfo } from '@immich/sdk';
   import { handleError } from '$lib/utils/handle-error';
+  import { shortcut } from '$lib/utils/shortcut';
 
   export let id: string;
   export let description: string;
@@ -36,7 +37,11 @@
     on:input={(e) => autoGrowHeight(e.currentTarget)}
     on:focusout={handleUpdateDescription}
     use:autoGrowHeight
-    placeholder="Add description"
+    placeholder="Add a description"
+    use:shortcut={{
+      shortcut: { key: 'Enter', ctrl: true },
+      onShortcut: (e) => e.currentTarget.blur(),
+    }}
   />
 {:else if description}
   <p class="break-words whitespace-pre-line w-full text-black dark:text-white text-base">

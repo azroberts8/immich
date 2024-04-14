@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import ImageThumbnail from '$lib/components/assets/thumbnail/image-thumbnail.svelte';
@@ -27,7 +26,7 @@
   import { getPeopleThumbnailUrl } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
   import { searchNameLocal } from '$lib/utils/person';
-  import { shouldIgnoreShortcut } from '$lib/utils/shortcut';
+  import { shortcut } from '$lib/utils/shortcut';
   import {
     getPerson,
     mergePerson,
@@ -38,7 +37,7 @@
     type PersonResponseDto,
   } from '@immich/sdk';
   import { mdiAccountOff, mdiEyeOutline } from '@mdi/js';
-  import { onDestroy, onMount } from 'svelte';
+  import { onMount } from 'svelte';
   import type { PageData } from './$types';
   import { locale } from '$lib/stores/preferences.store';
 
@@ -79,34 +78,13 @@
 
   $: countVisiblePeople = countTotalPeople - countHiddenPeople;
 
-  const onKeyboardPress = (event: KeyboardEvent) => handleKeyboardPress(event);
-
   onMount(async () => {
-    document.addEventListener('keydown', onKeyboardPress);
     const getSearchedPeople = $page.url.searchParams.get(QueryParameter.SEARCHED_PEOPLE);
     if (getSearchedPeople) {
       searchName = getSearchedPeople;
       await handleSearchPeople(true);
     }
   });
-
-  onDestroy(() => {
-    if (browser) {
-      document.removeEventListener('keydown', onKeyboardPress);
-    }
-  });
-
-  const handleKeyboardPress = (event: KeyboardEvent) => {
-    if (shouldIgnoreShortcut(event)) {
-      return;
-    }
-    switch (event.key) {
-      case 'Escape': {
-        handleCloseClick();
-        return;
-      }
-    }
-  };
 
   const handleSearch = async (force: boolean) => {
     $page.url.searchParams.set(QueryParameter.SEARCHED_PEOPLE, searchName);
@@ -417,7 +395,7 @@
   };
 </script>
 
-<svelte:window bind:innerHeight />
+<svelte:window bind:innerHeight use:shortcut={{ shortcut: { key: 'Escape' }, onShortcut: handleCloseClick }} />
 
 {#if showMergeModal}
   <MergeSuggestionModal
@@ -485,35 +463,25 @@
   {/if}
 
   {#if showChangeNameModal}
-    <FullScreenModal onClose={() => (showChangeNameModal = false)}>
-      <div
-        class="w-[500px] max-w-[95vw] rounded-3xl border bg-immich-bg p-4 py-8 shadow-sm dark:border-immich-dark-gray dark:bg-immich-dark-gray dark:text-immich-dark-fg"
-      >
-        <div
-          class="flex flex-col place-content-center place-items-center gap-4 px-4 text-immich-primary dark:text-immich-dark-primary"
-        >
-          <h1 class="text-2xl font-medium text-immich-primary dark:text-immich-dark-primary">Change name</h1>
+    <FullScreenModal id="change-name-modal" title="Change name" onClose={() => (showChangeNameModal = false)}>
+      <form on:submit|preventDefault={submitNameChange} autocomplete="off">
+        <div class="flex flex-col gap-2">
+          <label class="immich-form-label" for="name">Name</label>
+          <!-- svelte-ignore a11y-autofocus -->
+          <input class="immich-form-input" id="name" name="name" type="text" bind:value={personName} autofocus />
         </div>
 
-        <form on:submit|preventDefault={submitNameChange} autocomplete="off">
-          <div class="m-4 flex flex-col gap-2">
-            <label class="immich-form-label" for="name">Name</label>
-            <!-- svelte-ignore a11y-autofocus -->
-            <input class="immich-form-input" id="name" name="name" type="text" bind:value={personName} autofocus />
-          </div>
-
-          <div class="mt-8 flex w-full gap-4 px-4">
-            <Button
-              color="gray"
-              fullwidth
-              on:click={() => {
-                showChangeNameModal = false;
-              }}>Cancel</Button
-            >
-            <Button type="submit" fullwidth>Ok</Button>
-          </div>
-        </form>
-      </div>
+        <div class="mt-8 flex w-full gap-4">
+          <Button
+            color="gray"
+            fullwidth
+            on:click={() => {
+              showChangeNameModal = false;
+            }}>Cancel</Button
+          >
+          <Button type="submit" fullwidth>Ok</Button>
+        </div>
+      </form>
     </FullScreenModal>
   {/if}
 

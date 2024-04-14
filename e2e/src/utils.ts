@@ -1,10 +1,12 @@
 import {
+  AllJobStatusResponseDto,
   AssetFileUploadResponseDto,
   AssetResponseDto,
   CreateAlbumDto,
   CreateAssetDto,
   CreateLibraryDto,
   CreateUserDto,
+  MetadataSearchDto,
   PersonCreateDto,
   SharedLinkCreateDto,
   ValidateLibraryDto,
@@ -16,8 +18,11 @@ import {
   createUser,
   defaults,
   deleteAssets,
+  getAllAssets,
+  getAllJobsStatus,
   getAssetInfo,
   login,
+  searchMetadata,
   setAdminOnboarding,
   signUpAdmin,
   validate,
@@ -25,9 +30,10 @@ import {
 import { BrowserContext } from '@playwright/test';
 import { exec, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
+import path, { dirname } from 'node:path';
+import { setTimeout as setAsyncTimeout } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import pg from 'pg';
 import { io, type Socket } from 'socket.io-client';
@@ -36,8 +42,8 @@ import { makeRandomImage } from 'src/generators';
 import request from 'supertest';
 
 type CliResponse = { stdout: string; stderr: string; exitCode: number | null };
-type EventType = 'upload' | 'delete';
-type WaitOptions = { event: EventType; assetId: string; timeout?: number };
+type EventType = 'assetUpload' | 'assetUpdate' | 'assetDelete' | 'userDelete';
+type WaitOptions = { event: EventType; id?: string; total?: number; timeout?: number };
 type AdminSetupOptions = { onboarding?: boolean };
 type AssetData = { bytes?: Buffer; filename: string };
 
@@ -78,20 +84,36 @@ export const immichCli = async (args: string[]) => {
 let client: pg.Client | null = null;
 
 const events: Record<EventType, Set<string>> = {
-  upload: new Set<string>(),
-  delete: new Set<string>(),
+  assetUpload: new Set<string>(),
+  assetUpdate: new Set<string>(),
+  assetDelete: new Set<string>(),
+  userDelete: new Set<string>(),
 };
 
-const callbacks: Record<string, () => void> = {};
+const idCallbacks: Record<string, () => void> = {};
+const countCallbacks: Record<string, { count: number; callback: () => void }> = {};
 
 const execPromise = promisify(exec);
 
-const onEvent = ({ event, assetId }: { event: EventType; assetId: string }) => {
-  events[event].add(assetId);
-  const callback = callbacks[assetId];
-  if (callback) {
-    callback();
-    delete callbacks[assetId];
+const onEvent = ({ event, id }: { event: EventType; id: string }) => {
+  // console.log(`Received event: ${event} [id=${id}]`);
+  const set = events[event];
+  set.add(id);
+
+  const idCallback = idCallbacks[id];
+  if (idCallback) {
+    idCallback();
+    delete idCallbacks[id];
+  }
+
+  const item = countCallbacks[event];
+  if (item) {
+    const { count, callback: countCallback } = item;
+
+    if (set.size >= count) {
+      countCallback();
+      delete countCallbacks[event];
+    }
   }
 };
 
@@ -104,6 +126,8 @@ export const utils = {
       }
 
       tables = tables || [
+        // TODO e2e test for deleting a stack, since it is quite complex
+        'asset_stack',
         'libraries',
         'shared_links',
         'person',
@@ -117,9 +141,17 @@ export const utils = {
         'system_metadata',
       ];
 
-      for (const table of tables) {
-        await client.query(`DELETE FROM ${table} CASCADE;`);
+      const sql: string[] = [];
+
+      if (tables.includes('asset_stack')) {
+        sql.push('UPDATE "assets" SET "stackId" = NULL;');
       }
+
+      for (const table of tables) {
+        sql.push(`DELETE FROM ${table} CASCADE;`);
+      }
+
+      await client.query(sql.join('\n'));
     } catch (error) {
       console.error('Failed to reset database', error);
       throw error;
@@ -156,8 +188,10 @@ export const utils = {
     return new Promise<Socket>((resolve) => {
       websocket
         .on('connect', () => resolve(websocket))
-        .on('on_upload_success', (data: AssetResponseDto) => onEvent({ event: 'upload', assetId: data.id }))
-        .on('on_asset_delete', (assetId: string) => onEvent({ event: 'delete', assetId }))
+        .on('on_upload_success', (data: AssetResponseDto) => onEvent({ event: 'assetUpload', id: data.id }))
+        .on('on_asset_update', (data: AssetResponseDto) => onEvent({ event: 'assetUpdate', id: data.id }))
+        .on('on_asset_delete', (assetId: string) => onEvent({ event: 'assetDelete', id: assetId }))
+        .on('on_user_delete', (userId: string) => onEvent({ event: 'userDelete', id: userId }))
         .connect();
     });
   },
@@ -172,20 +206,41 @@ export const utils = {
     }
   },
 
-  waitForWebsocketEvent: async ({ event, assetId, timeout: ms }: WaitOptions): Promise<void> => {
-    console.log(`Waiting for ${event} [${assetId}]`);
-    const set = events[event];
-    if (set.has(assetId)) {
-      return;
+  resetEvents: () => {
+    for (const set of Object.values(events)) {
+      set.clear();
     }
+  },
 
+  waitForWebsocketEvent: ({ event, id, total: count, timeout: ms }: WaitOptions): Promise<void> => {
     return new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${event} event`)), ms || 10_000);
+      if (!id && !count) {
+        reject(new Error('id or count must be provided for waitForWebsocketEvent'));
+      }
 
-      callbacks[assetId] = () => {
+      const timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${event} event`)), ms || 10_000);
+      const type = id ? `id=${id}` : `count=${count}`;
+      console.log(`Waiting for ${event} [${type}]`);
+      const set = events[event];
+      const onId = () => {
         clearTimeout(timeout);
         resolve();
       };
+      if ((id && set.has(id)) || (count && set.size >= count)) {
+        onId();
+        return;
+      }
+
+      if (id) {
+        idCallbacks[id] = onId;
+      }
+
+      if (count) {
+        countCallbacks[event] = {
+          count,
+          callback: onId,
+        };
+      }
     });
   },
 
@@ -251,7 +306,30 @@ export const utils = {
     return body as AssetFileUploadResponseDto;
   },
 
+  createImageFile: (path: string) => {
+    if (!existsSync(dirname(path))) {
+      mkdirSync(dirname(path), { recursive: true });
+    }
+    if (!existsSync(path)) {
+      writeFileSync(path, makeRandomImage());
+    }
+  },
+
+  removeImageFile: (path: string) => {
+    if (!existsSync(path)) {
+      return;
+    }
+
+    rmSync(path);
+  },
+
   getAssetInfo: (accessToken: string, id: string) => getAssetInfo({ id }, { headers: asBearerAuth(accessToken) }),
+
+  getAllAssets: (accessToken: string) => getAllAssets({}, { headers: asBearerAuth(accessToken) }),
+
+  metadataSearch: async (accessToken: string, dto: MetadataSearchDto) => {
+    return searchMetadata({ metadataSearchDto: dto }, { headers: asBearerAuth(accessToken) });
+  },
 
   deleteAssets: (accessToken: string, ids: string[]) =>
     deleteAssets({ assetBulkDeleteDto: { ids } }, { headers: asBearerAuth(accessToken) }),
@@ -329,10 +407,36 @@ export const utils = {
       },
     ]),
 
-  cliLogin: async () => {
-    const admin = await utils.adminSetup();
-    const key = await utils.createApiKey(admin.accessToken);
-    await immichCli(['login-key', app, `${key.secret}`]);
+  deleteTempFolder: () => {
+    rmSync(`${testAssetDir}/temp`, { recursive: true, force: true });
+  },
+
+  isQueueEmpty: async (accessToken: string, queue: keyof AllJobStatusResponseDto) => {
+    const queues = await getAllJobsStatus({ headers: asBearerAuth(accessToken) });
+    const jobCounts = queues[queue].jobCounts;
+    return !jobCounts.active && !jobCounts.waiting;
+  },
+
+  waitForQueueFinish: (accessToken: string, queue: keyof AllJobStatusResponseDto, ms?: number) => {
+    return new Promise<void>(async (resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Timed out waiting for queue to empty')), ms || 10_000);
+
+      while (true) {
+        const done = await utils.isQueueEmpty(accessToken, queue);
+        if (done) {
+          break;
+        }
+        await setAsyncTimeout(200);
+      }
+
+      clearTimeout(timeout);
+      resolve();
+    });
+  },
+
+  cliLogin: async (accessToken: string) => {
+    const key = await utils.createApiKey(accessToken);
+    await immichCli(['login', app, `${key.secret}`]);
     return key.secret;
   },
 };

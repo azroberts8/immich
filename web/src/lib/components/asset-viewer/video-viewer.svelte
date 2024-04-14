@@ -9,7 +9,9 @@
 
   export let assetId: string;
 
+  let element: HTMLVideoElement | undefined = undefined;
   let isVideoLoading = true;
+
   const dispatch = createEventDispatcher<{ onVideoEnded: void; onVideoStarted: void }>();
 
   const handleCanPlay = async (event: Event) => {
@@ -27,8 +29,13 @@
   };
 </script>
 
-<div transition:fade={{ duration: 150 }} class="flex h-full select-none place-content-center place-items-center">
+<div
+  transition:fade={{ duration: 150 }}
+  class="flex select-none place-content-center place-items-center"
+  style="height: calc(100% - 64px)"
+>
   <video
+    bind:this={element}
     autoplay
     playsinline
     controls
